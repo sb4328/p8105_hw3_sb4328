@@ -1,0 +1,118 @@
+---
+title: "Homework 2"
+author: Sanjana Batabyal 
+output: github_document
+---
+
+This is my solution to Homework 1.
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(haven)
+library(magrittr)
+```
+
+## Problem 1
+Read the Mr. Trashwheel dataset.
+```{r}
+trashwheel_df=
+  read_xlsx(
+    "./data/Trash-Wheel-Collection-Totals-8-6-19.xlsx",
+    sheet="Mr. Trash Wheel",
+    range=cell_cols("A:N")) %>%
+janitor::clean_names() %>%
+drop_na(dumpster) %>%
+mutate(
+  sports_balls=round(sports_balls),
+  sports_balls=as.integer(sports_balls)
+)
+```
+Read the precipitation data for 2017 and 2018.
+```{r}
+precip_2018 =
+  read_xlsx(
+    "./data/Trash-Wheel-Collection-Totals-8-6-19.xlsx",
+    sheet="2018 Precipitation",
+    skip=1
+  ) %>%
+  janitor::clean_names() %>%
+  drop_na(month) %>%
+  mutate(year=2018) %>%
+    relocate(year)
+
+precip_2017 =
+  read_xlsx(
+    "./data/Trash-Wheel-Collection-Totals-8-6-19.xlsx",
+    sheet="2017 Precipitation",
+    skip=1
+  ) %>%
+  janitor::clean_names() %>%
+  drop_na(month) %>%
+  mutate(year=2017) %>%
+    relocate(year)
+```
+Combining both data sets.
+```{r}
+month_df =
+  tibble(
+    month = 1:12,
+    month_name = month.name
+)
+precip_df =
+  bind_rows(precip_2018, precip_2017)
+left_join(precip_df, month_df, by = "month")
+```
+This dataset refers to one of the trash wheel that exists in Baltimore, MD that collects trash that would filter into the harbor and ocean as a result of rainfall and the subsequent run off. This dataset contains extensive data regarding the amount of trash collected and when it was collected, such as month and year. The data set also includes some information about the type of trash that has been collected. There are `r nrow(trashwheel_df)` rows in our final dataset. 
+
+## Problem 2
+Reading and cleaning the data; retaining line, station, name, station latitude / longitude, routes served, entry, vending, entrance type, and ADA compliance.
+```{r}
+transit_df=read.csv("./data/NYC_Transit_Subway_Entrance_And_Exit_Data.csv") %>%
+  janitor::clean_names() %>%
+  unite(route, route1, route2, route3, route4, route5, route6, route7, route8, route9, route10, route11, na.rm = TRUE) %>%
+  select('line', 'station_name', 'station_latitude', 'station_longitude', 'route', 'entry', 'vending', 'entrance_type', 'ada') %>%
+mutate(entry = ifelse(entry == "YES", TRUE, FALSE))
+```
+This dataset details the locations of entrances and exits of subways across NYC. Information such as where the outlet is located, what line it caters to, the geographical coordinates of the outlet, as well as the type of entrace it is are all detailed. The data has been tidied to consolidate the routes and standardize the dataset however there remain redundant entries. There are `r nrow(transit_df)` rows and `r ncol(transit_df)` columns in the dataset. 
+
+There are `r select(transit_df, station_name, route) %>% distinct () %>% nrow()` distinct stations. There are `r select(transit_df, route, ada) %>% distinct() %>% nrow()` stations that are ADA compliant. There are `r select(transit_df, entry, vending) %>% filter(entry=='YES') %>% nrow() / select(transit_df, entry, vending) %>% filter(vending=='NO') %>% nrow() *100` percent of stations that do not allow vending allow entrance. 
+
+##Problem 3
+Cleaning the data in pols-month.csv. Separating "mon" into year, month, and date. Recoding the numerical month into names. Creating a president variable taking values gop and dem, and remove prez_dem and prez_gop. Removing the day variable.
+```{r}
+pols_df=read.csv("./data/pols-month.csv") %>%
+  janitor::clean_names() %>%
+  separate(mon, c("year","month","day"), sep="-") %>%
+  mutate(mon=recode(month,
+                      "1"="January", "2"="February", "3"="March", "4"="April", "5"="May","6"="June", "7"="July", "8"="August", "9"="September", "10"="October", "11"="November", "12"="December")) %>%
+mutate(president = ifelse(prez_dem==1, "dem", "gop")) %>%
+select (-day, -prez_dem, -prez_gop)
+```
+Cleaning the data in snp.csv. Arranging according to year and month. Organizing so that year and month are the leading columns.
+```{r}
+snp_df=read.csv("./data/snp.csv") %>%
+  janitor::clean_names() %>%
+  separate(date, c("month","day","year"), sep="/") %>%
+    mutate(date=recode(month,
+                      "1"="January", "2"="February", "3"="March", "4"="April", "5"="May","6"="June", "7"="July", "8"="August", "9"="September", "10"="October", "11"="November", "12"="December")) %>%
+select (year, month, -day, close)
+```
+Cleaning the unemployment data to merge with the previous datasets. Switching from “wide” to “long” format.
+```{r}
+unemployment_df=read.csv("./data/unemployment.csv") %>%
+  janitor::clean_names() %>%
+  pivot_longer(!year, names_to="month", values_to="unemployment") %>%
+  mutate(month=recode(month,
+                      "1"="January", "2"="February", "3"="March", "4"="April", "5"="May","6"="June", "7"="July", "8"="August", "9"="September", "10"="October", "11"="November", "12"="December"))
+```
+Joining the datasets by merging snp into pols, and merging unemployment.
+```{r}
+comb_snp_pols=merge(pols_df, snp_df) %>%
+merge(unemployment_df)
+```
+The dataset pols_df refers to the status of representatives (and their party) in the positions of Congress, president, and governor on a monthly basis from the year 1947 to 2015. There are `r nrow(pols_df)` rows and `r ncol(pols_df)` in this dataset.
+
+The dataset snp_df refers to the closing status of the S&P 500 starting from the year 1950 to 2015. There are `r nrow(snp_df)`rows and `r ncol(snp_df)` in this dataset.
+
+The dataset unemployment refers to the unemployment rates in the U.S. from the year 1948 to 2015. There are `r nrow(unemployment_df)`rows and `r ncol(unemployment_df)` in this dataset.
